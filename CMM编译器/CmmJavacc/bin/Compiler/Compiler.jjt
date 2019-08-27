@@ -1,0 +1,335 @@
+/**
+ * JJTree template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
+ */options{
+   static = true;
+   LOOKAHEAD=3;}PARSER_BEGIN(Compiler)package Compiler;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+
+public class Compiler{
+    static SymbolTable table = new SymbolTable();
+    static int level = 0;  public static void main(String args [])  {    try {            InputStream inputstream = new FileInputStream("src\\Compiler\\test.txt");
+            Compiler complier = new Compiler(inputstream);
+            SimpleNode node =complier.start();
+            node.dump(" ");    }    catch (Exception e){     		 //System.err.println(e);
+     		 e.printStackTrace();    }  }}PARSER_END(Compiler)
+
+SKIP :/*跳过的字符*/
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| < "//" (~[ "\n", "\r" ])*
+    (
+      "\n"
+    | "\r"
+    | "\r\n"
+    ) >
+| < "/*" (~[ "*" ])* "*"
+    (
+      ~[ "/" ] (~[ "*" ])* "*"
+    )*
+    "/" >
+}
+
+
+
+TOKEN : /* LITERALS */
+{
+    < CONSTANT :<INTEGER_LITERAL> | <DOUBLE_LITERAL>>
+    //数字
+    |<#DIGIT:["0"-"9"]>
+    //整数
+    |<INTEGER_LITERAL:["1"-"9"](<DIGIT>)*>
+    //实数
+    |<DOUBLE_LITERAL:(<DIGIT>)+
+    |(<DIGIT>)+"."
+    |(<DIGIT>)+"."(<DIGIT>)+
+    |"."(<DIGIT>)+>  
+}
+
+
+
+
+TOKEN :/*定义关键字*/
+{
+    <IF :"if">
+    |<ELSE :"else">
+    |<WHILE :"while">
+    |<DO :"do">
+    |<FOR :"for">
+    |<READ :"read">
+    |<WRITE :"write">
+    |<INT :"int">
+    |<DOUBLE:"double">
+    |<VOID:"void">
+    |<RETURN:"return">
+}
+
+
+TOKEN :/*操作符*/
+{
+     <PLUS:"+">
+    |<MINUS:"-">
+    |<MUL:"*">
+    |<DIV:"/">
+    |<ASSIGN:"=">
+    |<LT:"<">
+    |<GT:">">
+    |<LET:"<=">
+    |<GET:">=">
+    |<EQ:"==">
+    |<NEQ:"<>">
+}
+
+
+
+TOKEN : /* RELATIONSHIPOPERATOR */
+{
+	<LPS:"(">
+        |<RPS:")">
+        |<COMMA:",">
+        |<SEMI:";">
+        |<LBRACE:"{">
+        |<RBRACE:"}">
+        |<LBRACKET:"[">
+        |<RBRACKET:"]">
+        |<SINQS:"'">
+        |<DOUQS:"\"">
+        |<ADDR:"&">
+}
+
+TOKEN :/*定义标识符*/
+{
+  <IDENTIFIERS:["a"-"z","A"-"Z","_"](["a"-"z","A"-"Z","_","0"-"9"])*>
+}
+
+
+/*语法规则*/
+SimpleNode start(): { }
+{
+	procedure()
+	<EOF>
+	{
+	  return jjtThis;
+	}
+}
+
+void procedure(): { }
+{
+  (Statement())*
+}
+
+void Statement(): { }
+{
+ 	 	 IfStmt()
+      | WhileStmt()
+      | DoWhileStmt()
+      | ForStmt()      
+      | DeclareStmt()
+      | AssignStmt()";"
+      | BlockStmt()
+      | ReadStmt()
+      | WriteStmt()
+}
+
+int type():{}
+{
+    <INT>{return 0;}
+    |<DOUBLE>{return 1;}
+}
+
+
+//循环
+void IfStmt(): {}
+{
+  	< IF>< LPS>expression()< RPS>Statement()
+  	(
+        < ELSE > Statement()
+      )?
+}
+
+void WhileStmt(): {}
+{
+<WHILE><LPS>expression()<RPS>Statement()
+}
+
+void DoWhileStmt(): {}
+{
+  <DO>Statement()<WHILE><LPS>expression()<RPS>
+}
+
+void ForStmt(): {}
+{
+    <FOR><LPS>ForInitStmt()expression()";"AssignStmt()<RPS>
+    Statement()
+}
+
+
+void DeclareStmt():{
+   Token tk;
+   String name;
+   Symbol tmp;
+   int type;
+   String value;}
+{
+ (type=type()tk=< IDENTIFIERS>
+ {
+    name = tk.image;
+    tmp = new Symbol(level,name);
+    tmp.setType(type);
+    table.registerSymbol(tmp);
+ }(<ASSIGN>( value=expression(){table.symbolList.get(table.symbolList.size()-1).setValue(value);}))? (","
+ tk=< IDENTIFIERS >
+ {
+         name = tk.image;
+         tmp = new Symbol(level,name);
+         tmp.setType(type);
+         table.registerSymbol(tmp);
+  }(< ASSIGN> ( value=expression(){table.symbolList.get(table.symbolList.size()-1).setValue(value);}))?)* )
+";"}
+
+void AssignStmt(): {
+  Token tk;
+  Symbol tmp;
+  String value; }
+{
+	tk=< IDENTIFIERS>	{tmp=table.getSymbol(tk.image);}
+	< ASSIGN> value=expression(){tmp.setValue(value);}
+}
+
+void ForInitStmt(): {}
+{
+  	(DeclareStmt()|AssignStmt())
+}
+
+void BlockStmt(): {}
+{
+    <LBRACE>{level++;}(Statement())*<RBRACE>
+    {
+         table.deregisterSymbol(level);
+         level--;
+    }
+}
+
+
+String expression() :{
+  String poly1;
+  String poly2=null;
+  int type=0;}
+{
+	poly1=polynomial()(
+	 <EQ>poly2=polynomial(){type=1;}
+	 |<NEQ>poly2=polynomial(){type=2;}
+	 |<GT>poly2=polynomial(){type=3;}
+	 |<GET>poly2=polynomial(){type=4;}
+	 |<LT>poly2=polynomial(){type=5;}
+	 |<LET>poly2=polynomial(){type=6;}
+	)?
+	{
+	    if(poly2==null) return poly1;
+	    float f1 = Float.valueOf(poly1);
+	    float f2 = Float.valueOf(poly2);
+	    switch(type){
+	        case 0:  return poly1;
+	        case 1: if(poly1.equals(poly2)) return "1";  else return "0";
+	        case 2:if(poly1.equals(poly2)) return"0"; else return"1";
+	        case 3:if(f1>f2) return"1"; else return"0";
+	        case 4:if(f1>=f2) return"1";else return"0";
+	        case 5:if(f1<f2) return "1";else return"0";
+	        case 6:if(f1<=f2) return"1";else return"0";
+	        default:return poly1;
+	    }
+	}
+}
+
+String polynomial(): {
+  String term1;
+  String term2=null;int type=0;}
+{
+	term1=term()((<PLUS>{type=1;}|<MINUS>{type=2;})term2=polynomial())?
+	{
+	    if(term2==null) return term1;
+	    float f1 = Float.valueOf(term1);
+        float f2 = Float.valueOf(term2);
+        switch(type){
+            case 1:float f = f1+f2;return String.valueOf(f);
+            case 2:float f0 = f1-f2;return String.valueOf(f0);
+            default:return term1;
+        }
+	}
+}
+
+
+String term(): {
+  String factor1;
+  String factor2=null;
+  int type=0;}
+{
+	factor1=factor()((<DIV>{type=1;}|<MUL>{type=2;})factor2=term())?
+	{
+	    if(factor2==null) return factor1;
+	    float f1=Float.valueOf(factor1);
+	    float f2=Float.valueOf(factor2);
+	    switch(type){
+	        case 1:if(f2==0)throw new ParseException("The divisor can not be 0.");else {float f=f1/f2;return String.valueOf(f);}
+	        case 2:float f0=f1*f2;return String.valueOf(f0);
+	        default:return factor1;
+	    }
+	}
+}
+
+
+String factor() :{
+  Token tk;
+  String name;}
+{
+
+	tk= <CONSTANT> {return tk.image;}
+	| <LPS>name=expression(){return name;}<RPS>
+	| <PLUS>name=term(){return name;}
+	| <MINUS>name=term(){return "-"+name;}
+	| tk=<IDENTIFIERS>(<LPS>(expression()(","expression())*)?<RPS>)?
+	{
+	    name = tk.image;            
+        Symbol tmp = table.getSymbol(name);
+        return tmp.getValue();
+            
+	}
+}
+
+void ReadStmt():{
+Token tk;
+}
+{
+    <READ><LPS>tk=<IDENTIFIERS>{
+         table.getSymbol(tk.image);
+    }<RPS>";"
+}
+
+void WriteStmt(): {}
+{
+ <WRITE><LPS>expression()<RPS>";"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
